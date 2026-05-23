@@ -7,8 +7,8 @@ export function Brand() {
         <Building2 size={20} />
       </div>
       <div>
-        <strong>BuildSpace</strong>
-        <span>BIM project OS</span>
+        <strong>SiteModel</strong>
+        <span>BIM project workspace</span>
       </div>
     </div>
   )
