@@ -15,6 +15,19 @@ export type ModelObject = {
   scale: [number, number, number]
 }
 
+export type ModelIssueSeverity = 'Low' | 'Medium' | 'High'
+
+export type ModelIssueStatus = 'Open' | 'In Review' | 'Resolved'
+
+export type ModelIssue = {
+  id: string
+  objectId: string
+  title: string
+  severity: ModelIssueSeverity
+  status: ModelIssueStatus
+  createdAt: string
+}
+
 export type Project = {
   id: string
   name: string
