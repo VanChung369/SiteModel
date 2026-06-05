@@ -1,21 +1,35 @@
 import { useState } from 'react'
-import { baseObjects, initialUploads, projects, versions } from '../data/mockData'
+import { baseObjects, initialUploads, projects, versionedObjects, versions } from '../data/mockData'
 import { InspectorPanel } from '../features/inspector/InspectorPanel'
 import { ProjectRail } from '../features/projects/ProjectRail'
 import { ModelViewer } from '../features/viewer/ModelViewer'
-import { ObjectPanel, type ObjectCategoryFilter, type ObjectStatusFilter } from '../features/viewer/ObjectPanel'
-import type { ModelIssue, ModelObject, UploadItem } from '../types/domain'
+import {
+  ObjectPanel,
+  type ObjectCategoryFilter,
+  type ObjectLevelFilter,
+  type ObjectStatusFilter,
+} from '../features/viewer/ObjectPanel'
+import type { CameraView, ModelIssue, ModelIssueSeverity, ModelIssueStatus, ModelObject, UploadItem } from '../types/domain'
 import { formatBytes, getFileExtension, isBrowserLoadableModel } from '../utils/files'
 import { Topbar } from './Topbar'
 import '../styles/app.css'
 
+const defaultCameraView: CameraView = {
+  position: [8.8, 6.4, 8.6],
+  target: [0, 0, 0],
+  zoom: 1,
+}
+
 type SavedView = {
   id: string
+  name: string
   projectId: string
   selectedId: string
   activeTool: string
   activeVersion: string
+  cameraView: CameraView
   hiddenObjectIds: string[]
+  createdAt: string
 }
 
 function App() {
@@ -28,16 +42,21 @@ function App() {
   const [objectSearch, setObjectSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<ObjectCategoryFilter>('All')
   const [statusFilter, setStatusFilter] = useState<ObjectStatusFilter>('All')
+  const [levelFilter, setLevelFilter] = useState<ObjectLevelFilter>('All')
+  const [visibleOnly, setVisibleOnly] = useState(false)
   const [activeVersion, setActiveVersion] = useState(versions[1])
   const [modelUrl, setModelUrl] = useState<string | null>(null)
   const [modelName, setModelName] = useState(versions[1])
   const [savedViews, setSavedViews] = useState<SavedView[]>([])
+  const [viewName, setViewName] = useState('Coordination view')
+  const [currentCameraView, setCurrentCameraView] = useState<CameraView>(defaultCameraView)
+  const [cameraViewRequest, setCameraViewRequest] = useState<{ id: string; view: CameraView } | null>(null)
   const [issues, setIssues] = useState<ModelIssue[]>([])
   const [actionMessage, setActionMessage] = useState<string | null>(null)
 
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? projects[0]
   const selected = objects.find((object) => object.id === selectedId) ?? objects[0]
-  const selectedIssues = issues.filter((issue) => issue.objectId === selected.id && issue.status !== 'Resolved')
+  const selectedIssues = issues.filter((issue) => issue.objectId === selected.id)
   const visibleCount = objects.filter((object) => object.visible).length
 
   const updateSelected = (updates: Partial<ModelObject>) => {
@@ -45,7 +64,11 @@ function App() {
   }
 
   const moveObject = (id: string, position: ModelObject['position']) => {
-    setObjects((current) => current.map((object) => (object.id === id ? { ...object, position } : object)))
+    setObjects((current) =>
+      current.map((object) =>
+        object.id === id && object.position.some((value, index) => value !== position[index]) ? { ...object, position } : object,
+      ),
+    )
   }
 
   const selectAndMoveObject = (id: string) => {
@@ -84,20 +107,39 @@ function App() {
     setObjectSearch('')
     setCategoryFilter('All')
     setStatusFilter('All')
+    setLevelFilter('All')
+    setVisibleOnly(false)
     setActionMessage('Object created')
   }
 
-  const addIssue = (id: string) => {
+  const resetObjectFilters = () => {
+    setObjectSearch('')
+    setCategoryFilter('All')
+    setStatusFilter('All')
+    setLevelFilter('All')
+    setVisibleOnly(false)
+  }
+
+  const addIssue = (id: string, details: { assignee: string; note: string; severity: ModelIssueSeverity }) => {
     const issueObject = objects.find((object) => object.id === id)
+    const title = `${issueObject?.name ?? 'Model object'} coordination issue`
 
     setObjects((current) => current.map((object) => (object.id === id ? { ...object, status: 'Issue' } : object)))
     setIssues((current) => [
       {
         id: `issue-${Date.now()}`,
         objectId: id,
-        title: `${issueObject?.name ?? 'Model object'} coordination issue`,
-        severity: 'High',
+        title,
+        severity: details.severity,
         status: 'Open',
+        assignee: details.assignee.trim() || 'Unassigned',
+        note: details.note.trim() || 'No note added.',
+        viewContext: {
+          version: activeVersion,
+          tool: activeTool,
+          cameraView: currentCameraView,
+          objectPosition: issueObject?.position ?? [0, 0, 0],
+        },
         createdAt: 'Today',
       },
       ...current,
@@ -105,40 +147,74 @@ function App() {
     setActionMessage('Issue logged')
   }
 
-  const resolveIssue = (id: string) => {
+  const updateIssueStatus = (id: string, status: ModelIssueStatus) => {
     const issue = issues.find((currentIssue) => currentIssue.id === id)
 
     setIssues((current) =>
-      current.map((currentIssue) => (currentIssue.id === id ? { ...currentIssue, status: 'Resolved' } : currentIssue)),
+      current.map((currentIssue) =>
+        currentIssue.id === id
+          ? {
+              ...currentIssue,
+              status,
+              resolvedAt: status === 'Resolved' ? 'Today' : undefined,
+            }
+          : currentIssue,
+      ),
     )
 
     if (issue) {
       const hasOtherOpenIssues = issues.some(
-        (currentIssue) => currentIssue.id !== id && currentIssue.objectId === issue.objectId && currentIssue.status !== 'Resolved',
+        (currentIssue) =>
+          currentIssue.id !== id &&
+          currentIssue.objectId === issue.objectId &&
+          (status !== 'Resolved' || currentIssue.status !== 'Resolved'),
       )
 
-      if (!hasOtherOpenIssues) {
+      if (status === 'Resolved' && !hasOtherOpenIssues) {
         setObjects((current) =>
           current.map((object) => (object.id === issue.objectId ? { ...object, status: 'Reviewed' } : object)),
+        )
+      } else if (status !== 'Resolved') {
+        setObjects((current) =>
+          current.map((object) => (object.id === issue.objectId ? { ...object, status: 'Issue' } : object)),
         )
       }
     }
 
-    setActionMessage('Issue resolved')
+    setActionMessage(status === 'Resolved' ? 'Issue resolved' : `Issue ${status.toLowerCase()}`)
+  }
+
+  const loadVersionObjects = (version: string) => {
+    const nextObjects = versionedObjects[version] ?? baseObjects
+    const nextObjectIds = new Set(nextObjects.map((object) => object.id))
+
+    setObjects(nextObjects)
+    setSelectedId(nextObjects[0]?.id ?? baseObjects[0].id)
+    setIssues((current) => current.filter((issue) => nextObjectIds.has(issue.objectId)))
+    resetObjectFilters()
   }
 
   const selectVersion = (version: string) => {
     setActiveVersion(version)
     setModelName(version)
+    setModelUrl(null)
+    loadVersionObjects(version)
+    setActiveTool('Select')
+    setActionMessage(`${version} loaded`)
   }
 
   const syncModelState = () => {
-    setObjects(baseObjects)
+    const syncedVersion = versions[1]
+    setObjects(versionedObjects[syncedVersion] ?? baseObjects)
     setIssues([])
-    setSelectedId(baseObjects[0].id)
+    setSelectedId((versionedObjects[syncedVersion] ?? baseObjects)[0].id)
     setActiveTool('Select')
-    setActiveVersion(versions[1])
-    setModelName(modelUrl ? modelName : versions[1])
+    setActiveVersion(syncedVersion)
+    setModelName(syncedVersion)
+    setModelUrl(null)
+    setCurrentCameraView(defaultCameraView)
+    setCameraViewRequest({ id: `sync-${Date.now()}`, view: defaultCameraView })
+    resetObjectFilters()
     setActionMessage('Synced latest model state')
   }
 
@@ -148,19 +224,42 @@ function App() {
 
   const saveView = () => {
     const hiddenObjectIds = objects.filter((object) => !object.visible).map((object) => object.id)
+    const name = viewName.trim() || `View ${savedViews.length + 1}`
 
     setSavedViews((current) => [
       {
         id: `view-${Date.now()}`,
+        name,
         projectId: activeProjectId,
         selectedId,
         activeTool,
         activeVersion,
+        cameraView: currentCameraView,
         hiddenObjectIds,
+        createdAt: 'Today',
       },
       ...current,
     ])
-    setActionMessage('View saved')
+    setActionMessage(`${name} saved`)
+  }
+
+  const loadSavedView = (view: SavedView) => {
+    const versionObjects = versionedObjects[view.activeVersion] ?? baseObjects
+
+    setActiveProjectId(view.projectId)
+    setSelectedId(view.selectedId)
+    setActiveTool(view.activeTool)
+    setActiveVersion(view.activeVersion)
+    setModelName(view.activeVersion)
+    setModelUrl(null)
+    setObjects(
+      versionObjects.map((object) => ({
+        ...object,
+        visible: !view.hiddenObjectIds.includes(object.id),
+      })),
+    )
+    setCameraViewRequest({ id: view.id, view: view.cameraView })
+    setActionMessage(`${view.name} loaded`)
   }
 
   const handleFiles = (files: FileList | null) => {
@@ -206,11 +305,26 @@ function App() {
           projectName={activeProject.name}
           projectSite={activeProject.site}
           savedViewCount={savedViews.length}
+          viewName={viewName}
           actionMessage={actionMessage}
+          onViewNameChange={setViewName}
           onSync={syncModelState}
           onShare={shareView}
           onSaveView={saveView}
         />
+
+        {savedViews.length > 0 ? (
+          <div className="saved-view-strip" aria-label="Saved views">
+            {savedViews.map((view) => (
+              <button type="button" key={view.id} onClick={() => loadSavedView(view)}>
+                <strong>{view.name}</strong>
+                <span>
+                  {view.activeVersion} - {view.createdAt}
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         <div className="editor-grid">
           <ObjectPanel
@@ -220,11 +334,16 @@ function App() {
             objectSearch={objectSearch}
             categoryFilter={categoryFilter}
             statusFilter={statusFilter}
+            levelFilter={levelFilter}
+            visibleOnly={visibleOnly}
             onSelect={setSelectedId}
             onToggleVisibility={toggleObjectVisibility}
             onObjectSearch={setObjectSearch}
             onCategoryFilter={setCategoryFilter}
             onStatusFilter={setStatusFilter}
+            onLevelFilter={setLevelFilter}
+            onVisibleOnly={setVisibleOnly}
+            onResetFilters={resetObjectFilters}
             onCreateObject={createObject}
             onSelectAndMove={selectAndMoveObject}
           />
@@ -235,10 +354,12 @@ function App() {
             modelUrl={modelUrl}
             activeTool={activeTool}
             activeVersion={activeVersion}
+            cameraViewRequest={cameraViewRequest}
             onSelectObject={setSelectedId}
             onSelectTool={setActiveTool}
             onSelectVersion={selectVersion}
             onMoveObject={moveObject}
+            onCameraViewChange={setCurrentCameraView}
           />
           <InspectorPanel
             selected={selected}
@@ -246,7 +367,7 @@ function App() {
             onUpdateSelected={updateSelected}
             onIsolateSelected={isolateObject}
             onAddIssue={addIssue}
-            onResolveIssue={resolveIssue}
+            onUpdateIssueStatus={updateIssueStatus}
           />
         </div>
       </section>

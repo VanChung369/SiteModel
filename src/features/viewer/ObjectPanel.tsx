@@ -1,8 +1,9 @@
-import { Eye, EyeOff, Move3D, Plus, Search } from 'lucide-react'
+import { Eye, EyeOff, Move3D, Plus, RotateCcw, Search } from 'lucide-react'
 import type { ModelObject, ModelObjectCategory, ModelObjectStatus } from '../../types/domain'
 
 export type ObjectCategoryFilter = ModelObjectCategory | 'All'
 export type ObjectStatusFilter = ModelObjectStatus | 'All'
+export type ObjectLevelFilter = string
 
 type ObjectPanelProps = {
   objects: ModelObject[]
@@ -11,11 +12,16 @@ type ObjectPanelProps = {
   objectSearch: string
   categoryFilter: ObjectCategoryFilter
   statusFilter: ObjectStatusFilter
+  levelFilter: ObjectLevelFilter
+  visibleOnly: boolean
   onSelect: (id: string) => void
   onToggleVisibility: (id: string) => void
   onObjectSearch: (query: string) => void
   onCategoryFilter: (category: ObjectCategoryFilter) => void
   onStatusFilter: (status: ObjectStatusFilter) => void
+  onLevelFilter: (level: ObjectLevelFilter) => void
+  onVisibleOnly: (visibleOnly: boolean) => void
+  onResetFilters: () => void
   onCreateObject: () => void
   onSelectAndMove: (id: string) => void
 }
@@ -30,23 +36,31 @@ export function ObjectPanel({
   objectSearch,
   categoryFilter,
   statusFilter,
+  levelFilter,
+  visibleOnly,
   onSelect,
   onToggleVisibility,
   onObjectSearch,
   onCategoryFilter,
   onStatusFilter,
+  onLevelFilter,
+  onVisibleOnly,
+  onResetFilters,
   onCreateObject,
   onSelectAndMove,
 }: ObjectPanelProps) {
   const normalizedSearch = objectSearch.trim().toLowerCase()
+  const levelOptions = ['All', ...Array.from(new Set(objects.map((object) => object.level))).sort()]
   const filteredObjects = objects.filter((object) => {
     const matchesSearch = normalizedSearch
       ? [object.name, object.category, object.level, object.status].some((value) => value.toLowerCase().includes(normalizedSearch))
       : true
     const matchesCategory = categoryFilter === 'All' || object.category === categoryFilter
     const matchesStatus = statusFilter === 'All' || object.status === statusFilter
+    const matchesLevel = levelFilter === 'All' || object.level === levelFilter
+    const matchesVisibility = !visibleOnly || object.visible
 
-    return matchesSearch && matchesCategory && matchesStatus
+    return matchesSearch && matchesCategory && matchesStatus && matchesLevel && matchesVisibility
   })
 
   return (
@@ -95,6 +109,30 @@ export function ObjectPanel({
             ))}
           </select>
         </label>
+        <label>
+          <span>Level</span>
+          <select value={levelFilter} onChange={(event) => onLevelFilter(event.currentTarget.value)}>
+            {levelOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="filter-actions">
+          <label className="visible-toggle">
+            <input
+              checked={visibleOnly}
+              type="checkbox"
+              onChange={(event) => onVisibleOnly(event.currentTarget.checked)}
+            />
+            <span>Visible only</span>
+          </label>
+          <button type="button" className="reset-filters" onClick={onResetFilters}>
+            <RotateCcw size={13} />
+            Reset
+          </button>
+        </div>
       </div>
 
       <div className="object-list">

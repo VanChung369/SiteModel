@@ -10,14 +10,16 @@ SiteModel la workspace BIM/CAD chay tren web cho doi quan ly du an xay dung. MVP
 - IFC/DXF/DWG/RVT hien duoc dua vao hang doi mock de chuan bi conversion backend.
 - 3D coordination viewer dung Three.js, `@react-three/fiber` va `@react-three/drei`, co Move tool de keo object dang chon theo truc X/Y/Z va Fit tool de focus selected object.
 - Object list co selection state, visible count, nut an/hien tung object, nut select-and-move tung object, tao object moi va filter theo ten/category/status.
+- Object list co filter nang cao theo level, visible-only va reset filters nhanh.
 - Inspector cho phep sua object name, material color, review progress, visibility va position X/Y/Z cua object dang chon; position nay sync voi Move tool tren canvas va co nudge/reset nhanh.
 - Layers tool hien overlay tom tat category/layer va visible count trong viewer.
-- Measure tool hien overlay so do selected object: bounding size va distance from origin.
+- Measure tool hien overlay so do selected object, bounding size, distance from origin va cho pick 2 diem tren viewer de tinh khoang cach.
 - Inspector co action Isolate de chi giu object dang chon trong viewer.
-- Inspector co action Add issue de tao issue record client-side, gan voi object dang chon, cap nhat status Issue va Resolve de dong issue.
-- Version strip cho phep chon file/version active va cap nhat viewer context.
-- Topbar co Sync de reset state viewer ve seed model, Share de tao feedback link san sang va Save View de luu snapshot local.
-- Unit/UI tests cho project rail va object panel bang Vitest + Testing Library.
+- Inspector co issue workflow client-side: assignee, severity, note, view context, In Review, Resolve va Reopen cho object dang chon.
+- Version strip cho phep chon file/version active va load bo object mock rieng cho tung version vao viewer.
+- Topbar co Sync de reset state viewer ve seed model, Share de tao feedback link san sang va Save View de luu snapshot local kem ten view, camera position/target/zoom va danh sach view co the load lai.
+- Unit/UI tests cho project rail/object panel/inspector/viewer bang Vitest + Testing Library.
+- Playwright E2E smoke tests cho app load, object filter/visibility, direct drag selected object, measure, issue workflow, version loading, file import queue va mobile viewer controls.
 
 ## Tech stack
 
@@ -30,6 +32,7 @@ SiteModel la workspace BIM/CAD chay tren web cho doi quan ly du an xay dung. MVP
 - Lucide React
 - Vitest
 - Testing Library
+- Playwright
 
 ## Cau truc thu muc
 
@@ -66,15 +69,15 @@ src/
 `App.tsx` giu state local cho:
 
 - `objects`: object BIM mock dang hien trong viewer, gom visibility, issue/review status, position va scale.
-- `issues`: danh sach issue client-side gan theo `objectId`, gom severity, status, thoi diem tao va lifecycle open/resolved.
+- `issues`: danh sach issue client-side gan theo `objectId`, gom severity, assignee, note, view context, status, thoi diem tao va lifecycle open/in-review/resolved/reopen.
 - `selectedId`: object dang duoc chon.
 - `uploads`: danh sach file da import hoac dang queue.
 - `activeProjectId`: du an dang duoc chon.
 - `projectSearch`: query loc du an.
 - `objectSearch`, `categoryFilter`, `statusFilter`: filter client-side cho object list.
-- `activeVersion`: file/version dang duoc chon trong version strip.
+- `activeVersion`: file/version dang duoc chon trong version strip; moi version mock co object set rieng trong `versionedObjects`.
 - `modelUrl` va `modelName`: file GLB/GLTF load truc tiep trong viewer.
-- `savedViews`: snapshot local gom project, selected object, active tool, active version va danh sach hidden objects.
+- `savedViews`: snapshot local gom ten view, project, selected object, active tool, active version, camera position/target/zoom va danh sach hidden objects.
 
 Khi nguoi dung import GLB/GLTF, app tao `URL.createObjectURL(file)` va dua file vao `SceneModel`. Cac dinh dang khac duoc danh dau `Queued` de mo phong conversion pipeline.
 
@@ -98,6 +101,7 @@ npm run dev      # Chay dev server
 npm run build    # Type-check va build production
 npm run lint     # Chay ESLint
 npm test         # Chay Vitest unit/UI tests
+npm run test:e2e # Chay Playwright E2E smoke tests
 npm run preview  # Preview ban build
 ```
 
@@ -105,14 +109,9 @@ npm run preview  # Preview ban build
 
 1. Persist data: thay mock state bang backend/API cho projects, uploads, objects, view states va annotations.
 2. Conversion pipeline: upload raw IFC/DWG/RVT len server, convert sang GLB, tra ve status theo job.
-3. Save View nang cao: luu them camera position, zoom/pan va ten view thay vi chi snapshot local.
-4. Issue workflow nang cao: them note, screenshot/view context, assignee, reopen va persist issue len backend.
-5. Measurement nang cao: cho pick 2 diem bat ky tren canvas va hien distance giua 2 diem.
-6. Filter nang cao: them level filter, visible-only filter va reset filters nhanh cho object list.
-7. Version loading: click version strip nen load dung file/model data thay vi chi doi viewer context text.
-8. Real BIM metadata: map IFC GUID, phase, owner, volume, clashes tu model metadata that.
-9. Auth va project permissions: phan quyen owner/editor/viewer cho workspace.
-10. E2E tests: them Playwright smoke test cho app load, search project, filter objects, toggle visibility, isolate, add issue va import GLB.
+3. Issue persistence: luu issue workflow, note va view context len backend thay vi chi giu client-local.
+4. Real BIM metadata: map IFC GUID, phase, owner, volume, clashes tu model metadata that.
+5. Auth va project permissions: phan quyen owner/editor/viewer cho workspace.
 
 ## Development notes
 

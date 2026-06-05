@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { InspectorPanel } from './InspectorPanel'
-import type { ModelIssue, ModelObject } from '../../types/domain'
+import type { CameraView, ModelIssue, ModelObject } from '../../types/domain'
 
 const selected: ModelObject = {
   id: 'core-a',
@@ -17,6 +17,12 @@ const selected: ModelObject = {
   scale: [1.15, 4.2, 1.15],
 }
 
+const cameraView: CameraView = {
+  position: [8.8, 6.4, 8.6],
+  target: [0, 0, 0],
+  zoom: 1,
+}
+
 const issues: ModelIssue[] = [
   {
     id: 'issue-1',
@@ -24,6 +30,14 @@ const issues: ModelIssue[] = [
     title: 'Concrete Core A coordination issue',
     severity: 'High',
     status: 'Open',
+    assignee: 'Coordination',
+    note: 'Check slab edge clearance.',
+    viewContext: {
+      version: 'Architecture v12.glb',
+      tool: 'Move',
+      cameraView,
+      objectPosition: [0, 2.1, 0],
+    },
     createdAt: 'Today',
   },
 ]
@@ -41,7 +55,7 @@ describe('InspectorPanel', () => {
         onUpdateSelected={vi.fn()}
         onIsolateSelected={onIsolateSelected}
         onAddIssue={vi.fn()}
-        onResolveIssue={vi.fn()}
+        onUpdateIssueStatus={vi.fn()}
       />,
     )
 
@@ -60,13 +74,20 @@ describe('InspectorPanel', () => {
         onUpdateSelected={vi.fn()}
         onIsolateSelected={vi.fn()}
         onAddIssue={onAddIssue}
-        onResolveIssue={vi.fn()}
+        onUpdateIssueStatus={vi.fn()}
       />,
     )
 
+    fireEvent.change(screen.getByLabelText(/issue assignee/i), { target: { value: 'MEP Lead' } })
+    fireEvent.change(screen.getByLabelText(/issue severity/i), { target: { value: 'Medium' } })
+    fireEvent.change(screen.getByLabelText(/issue note/i), { target: { value: 'Review riser clearance.' } })
     fireEvent.click(screen.getByRole('button', { name: /add issue/i }))
 
-    expect(onAddIssue).toHaveBeenCalledWith('core-a')
+    expect(onAddIssue).toHaveBeenCalledWith('core-a', {
+      assignee: 'MEP Lead',
+      note: 'Review riser clearance.',
+      severity: 'Medium',
+    })
   })
 
   it('shows issue count and issue details for the selected object', () => {
@@ -77,13 +98,15 @@ describe('InspectorPanel', () => {
         onUpdateSelected={vi.fn()}
         onIsolateSelected={vi.fn()}
         onAddIssue={vi.fn()}
-        onResolveIssue={vi.fn()}
+        onUpdateIssueStatus={vi.fn()}
       />,
     )
 
     expect(screen.getByText('1 open issue')).toBeInTheDocument()
     expect(screen.getByText('Concrete Core A coordination issue')).toBeInTheDocument()
-    expect(screen.getByText('High - Open - Today')).toBeInTheDocument()
+    expect(screen.getByText('High - Coordination - Today')).toBeInTheDocument()
+    expect(screen.getByText('Check slab edge clearance.')).toBeInTheDocument()
+    expect(screen.getByText(/View: Architecture v12\.glb \/ Move/i)).toBeInTheDocument()
   })
 
   it('shows an empty issue state when the selected object has no issues', () => {
@@ -94,30 +117,46 @@ describe('InspectorPanel', () => {
         onUpdateSelected={vi.fn()}
         onIsolateSelected={vi.fn()}
         onAddIssue={vi.fn()}
-        onResolveIssue={vi.fn()}
+        onUpdateIssueStatus={vi.fn()}
       />,
     )
 
     expect(screen.getByText('No issues logged for this object.')).toBeInTheDocument()
   })
 
-  it('requests issue resolution from an issue row', () => {
-    const onResolveIssue = vi.fn()
+  it('requests issue status changes from issue workflow actions', () => {
+    const onUpdateIssueStatus = vi.fn()
 
-    render(
+    const { rerender } = render(
       <InspectorPanel
         selected={{ ...selected, status: 'Issue' }}
         issues={issues}
         onUpdateSelected={vi.fn()}
         onIsolateSelected={vi.fn()}
         onAddIssue={vi.fn()}
-        onResolveIssue={onResolveIssue}
+        onUpdateIssueStatus={onUpdateIssueStatus}
       />,
     )
 
+    fireEvent.click(screen.getByRole('button', { name: /mark concrete core a coordination issue in review/i }))
     fireEvent.click(screen.getByRole('button', { name: /resolve concrete core a coordination issue/i }))
 
-    expect(onResolveIssue).toHaveBeenCalledWith('issue-1')
+    rerender(
+      <InspectorPanel
+        selected={{ ...selected, status: 'Reviewed' }}
+        issues={[{ ...issues[0], status: 'Resolved', resolvedAt: 'Today' }]}
+        onUpdateSelected={vi.fn()}
+        onIsolateSelected={vi.fn()}
+        onAddIssue={vi.fn()}
+        onUpdateIssueStatus={onUpdateIssueStatus}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /reopen concrete core a coordination issue/i }))
+
+    expect(onUpdateIssueStatus).toHaveBeenNthCalledWith(1, 'issue-1', 'In Review')
+    expect(onUpdateIssueStatus).toHaveBeenNthCalledWith(2, 'issue-1', 'Resolved')
+    expect(onUpdateIssueStatus).toHaveBeenNthCalledWith(3, 'issue-1', 'Open')
   })
 
   it('updates the selected object position one axis at a time', () => {
@@ -130,7 +169,7 @@ describe('InspectorPanel', () => {
         onUpdateSelected={onUpdateSelected}
         onIsolateSelected={vi.fn()}
         onAddIssue={vi.fn()}
-        onResolveIssue={vi.fn()}
+        onUpdateIssueStatus={vi.fn()}
       />,
     )
 
@@ -153,7 +192,7 @@ describe('InspectorPanel', () => {
         onUpdateSelected={onUpdateSelected}
         onIsolateSelected={vi.fn()}
         onAddIssue={vi.fn()}
-        onResolveIssue={vi.fn()}
+        onUpdateIssueStatus={vi.fn()}
       />,
     )
 

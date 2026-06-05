@@ -1,14 +1,15 @@
+import { useRef, useState } from 'react'
 import { Box, Braces, CheckCircle2, Eye, EyeOff, MessageSquare, Minus, Plus, RotateCcw, SlidersHorizontal } from 'lucide-react'
 import { SectionTitle } from '../../components/SectionTitle'
-import type { ModelIssue, ModelObject } from '../../types/domain'
+import type { ModelIssue, ModelIssueSeverity, ModelIssueStatus, ModelObject } from '../../types/domain'
 
 type InspectorPanelProps = {
   selected: ModelObject
   issues: ModelIssue[]
   onUpdateSelected: (updates: Partial<ModelObject>) => void
   onIsolateSelected: (id: string) => void
-  onAddIssue: (id: string) => void
-  onResolveIssue: (id: string) => void
+  onAddIssue: (id: string, details: { assignee: string; note: string; severity: ModelIssueSeverity }) => void
+  onUpdateIssueStatus: (id: string, status: ModelIssueStatus) => void
 }
 
 function formatIssueCount(count: number) {
@@ -31,8 +32,32 @@ export function InspectorPanel({
   onUpdateSelected,
   onIsolateSelected,
   onAddIssue,
-  onResolveIssue,
+  onUpdateIssueStatus,
 }: InspectorPanelProps) {
+  const [issueAssignee, setIssueAssignee] = useState('Coordination')
+  const [issueSeverity, setIssueSeverity] = useState<ModelIssueSeverity>('High')
+  const [issueNote, setIssueNote] = useState('')
+  const issueAssigneeRef = useRef<HTMLInputElement | null>(null)
+  const issueSeverityRef = useRef<HTMLSelectElement | null>(null)
+  const issueNoteRef = useRef<HTMLTextAreaElement | null>(null)
+
+  const openIssueCount = issues.filter((issue) => issue.status !== 'Resolved').length
+
+  const submitIssue = () => {
+    const assignee = issueAssigneeRef.current?.value ?? issueAssignee
+    const severity = (issueSeverityRef.current?.value ?? issueSeverity) as ModelIssueSeverity
+    const note = issueNoteRef.current?.value ?? issueNote
+
+    onAddIssue(selected.id, {
+      assignee,
+      note,
+      severity,
+    })
+    setIssueAssignee(assignee)
+    setIssueSeverity(severity)
+    setIssueNote('')
+  }
+
   return (
     <aside className="inspector">
       <div className="panel-header">
@@ -206,7 +231,7 @@ export function InspectorPanel({
         </div>
         <div>
           <span>Clashes</span>
-          <strong>{issues.length}</strong>
+          <strong>{openIssueCount}</strong>
         </div>
       </div>
 
@@ -215,31 +240,96 @@ export function InspectorPanel({
           <SlidersHorizontal size={15} />
           Isolate
         </button>
-        <button type="button" onClick={() => onAddIssue(selected.id)}>
-          <MessageSquare size={15} />
-          Add issue
-        </button>
       </div>
 
       <section className="data-card issue-card">
         <SectionTitle icon={MessageSquare}>Issues</SectionTitle>
-        <strong className="issue-count">{formatIssueCount(issues.length)}</strong>
+        <strong className="issue-count">{formatIssueCount(openIssueCount)}</strong>
+        <div className="issue-form">
+          <label>
+            <span>Assignee</span>
+            <input
+              aria-label="Issue assignee"
+              ref={issueAssigneeRef}
+              value={issueAssignee}
+              onChange={(event) => setIssueAssignee(event.currentTarget.value)}
+            />
+          </label>
+          <label>
+            <span>Severity</span>
+            <select
+              aria-label="Issue severity"
+              ref={issueSeverityRef}
+              value={issueSeverity}
+              onChange={(event) => setIssueSeverity(event.currentTarget.value as ModelIssueSeverity)}
+            >
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </select>
+          </label>
+          <label className="issue-note-field">
+            <span>Note</span>
+            <textarea
+              aria-label="Issue note"
+              ref={issueNoteRef}
+              placeholder="Describe the coordination issue"
+              value={issueNote}
+              onChange={(event) => setIssueNote(event.currentTarget.value)}
+            />
+          </label>
+          <button type="button" className="issue-submit" onClick={submitIssue}>
+            <MessageSquare size={15} />
+            Add issue
+          </button>
+        </div>
         {issues.length > 0 ? (
           <div className="issue-list">
             {issues.map((issue) => (
               <article className="issue-item" key={issue.id}>
-                <strong>{issue.title}</strong>
+                <div className="issue-item-header">
+                  <strong>{issue.title}</strong>
+                  <em>{issue.status}</em>
+                </div>
                 <span>
-                  {issue.severity} - {issue.status} - {issue.createdAt}
+                  {issue.severity} - {issue.assignee} - {issue.createdAt}
+                  {issue.resolvedAt ? ` - Resolved ${issue.resolvedAt}` : ''}
                 </span>
-                <button
-                  type="button"
-                  className="issue-resolve"
-                  aria-label={`Resolve ${issue.title}`}
-                  onClick={() => onResolveIssue(issue.id)}
-                >
-                  Resolve
-                </button>
+                <p>{issue.note}</p>
+                <code>
+                  View: {issue.viewContext.version} / {issue.viewContext.tool}
+                  <br />
+                  Position: {issue.viewContext.objectPosition.join(', ')}
+                </code>
+                <div className="issue-workflow-actions">
+                  {issue.status === 'Open' ? (
+                    <button
+                      type="button"
+                      aria-label={`Mark ${issue.title} in review`}
+                      onClick={() => onUpdateIssueStatus(issue.id, 'In Review')}
+                    >
+                      In review
+                    </button>
+                  ) : null}
+                  {issue.status !== 'Resolved' ? (
+                    <button
+                      type="button"
+                      className="issue-resolve"
+                      aria-label={`Resolve ${issue.title}`}
+                      onClick={() => onUpdateIssueStatus(issue.id, 'Resolved')}
+                    >
+                      Resolve
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      aria-label={`Reopen ${issue.title}`}
+                      onClick={() => onUpdateIssueStatus(issue.id, 'Open')}
+                    >
+                      Reopen
+                    </button>
+                  )}
+                </div>
               </article>
             ))}
           </div>

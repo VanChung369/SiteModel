@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { Children, isValidElement, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ModelViewer } from './ModelViewer'
-import type { ModelObject } from '../../types/domain'
+import type { MeasurementPoint, ModelObject } from '../../types/domain'
 
 vi.mock('@react-three/fiber', () => ({
   Canvas: ({ children }: { children: ReactNode }) => (
@@ -11,27 +11,49 @@ vi.mock('@react-three/fiber', () => ({
       {Children.toArray(children).filter((child) => isValidElement(child) && typeof child.type === 'function')}
     </div>
   ),
+  useFrame: () => undefined,
+  useThree: () => ({
+    camera: {
+      position: {
+        x: 8.8,
+        y: 6.4,
+        z: 8.6,
+        set: () => undefined,
+      },
+      zoom: 1,
+      updateProjectionMatrix: () => undefined,
+    },
+  }),
 }))
 
 vi.mock('@react-three/drei', () => ({
   ContactShadows: () => null,
   Environment: () => null,
   Grid: () => null,
+  Line: () => null,
   OrbitControls: () => null,
 }))
 
 vi.mock('./SceneModel', () => ({
   SceneModel: ({
     fitEnabled,
+    onMeasurePoint,
     onMoveObject,
   }: {
     fitEnabled?: boolean
+    onMeasurePoint: (point: MeasurementPoint) => void
     onMoveObject: (id: string, position: ModelObject['position']) => void
   }) => (
     <div>
       <span>{fitEnabled ? 'Fit enabled' : 'Fit disabled'}</span>
       <button type="button" onClick={() => onMoveObject('core-a', [1.2, 2.3, -0.4])}>
         Simulate object move
+      </button>
+      <button type="button" onClick={() => onMeasurePoint([0, 0, 0])}>
+        Simulate first point
+      </button>
+      <button type="button" onClick={() => onMeasurePoint([3, 0, 4])}>
+        Simulate second point
       </button>
     </div>
   ),
@@ -66,10 +88,12 @@ describe('ModelViewer', () => {
         modelUrl={null}
         activeTool="Move"
         activeVersion="Architecture v12.glb"
+        cameraViewRequest={null}
         onSelectObject={vi.fn()}
         onSelectTool={vi.fn()}
         onSelectVersion={vi.fn()}
         onMoveObject={onMoveObject}
+        onCameraViewChange={vi.fn()}
       />,
     )
 
@@ -101,10 +125,12 @@ describe('ModelViewer', () => {
         modelUrl={null}
         activeTool="Layers"
         activeVersion="Architecture v12.glb"
+        cameraViewRequest={null}
         onSelectObject={vi.fn()}
         onSelectTool={vi.fn()}
         onSelectVersion={vi.fn()}
         onMoveObject={vi.fn()}
+        onCameraViewChange={vi.fn()}
       />,
     )
 
@@ -126,10 +152,12 @@ describe('ModelViewer', () => {
         modelUrl={null}
         activeTool="Measure"
         activeVersion="Architecture v12.glb"
+        cameraViewRequest={null}
         onSelectObject={vi.fn()}
         onSelectTool={vi.fn()}
         onSelectVersion={vi.fn()}
         onMoveObject={vi.fn()}
+        onCameraViewChange={vi.fn()}
       />,
     )
 
@@ -139,6 +167,36 @@ describe('ModelViewer', () => {
     expect(within(measurePanel).getByText('Concrete Core A')).toBeInTheDocument()
     expect(within(measurePanel).getByText('1.15 x 4.2 x 1.15 m')).toBeInTheDocument()
     expect(within(measurePanel).getByText('2.10 m')).toBeInTheDocument()
+    expect(within(measurePanel).getByText('Picked distance')).toBeInTheDocument()
+    expect(within(measurePanel).getAllByText('-')).toHaveLength(3)
+  })
+
+  it('shows picked distance after two measurement points are captured', () => {
+    render(
+      <ModelViewer
+        objects={objects}
+        selectedId="core-a"
+        modelName="Architecture v12.glb"
+        modelUrl={null}
+        activeTool="Measure"
+        activeVersion="Architecture v12.glb"
+        cameraViewRequest={null}
+        onSelectObject={vi.fn()}
+        onSelectTool={vi.fn()}
+        onSelectVersion={vi.fn()}
+        onMoveObject={vi.fn()}
+        onCameraViewChange={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /simulate first point/i }))
+    fireEvent.click(screen.getByRole('button', { name: /simulate second point/i }))
+
+    const measurePanel = screen.getByLabelText(/measurement summary/i)
+
+    expect(within(measurePanel).getByText('0.00, 0.00, 0.00')).toBeInTheDocument()
+    expect(within(measurePanel).getByText('3.00, 0.00, 4.00')).toBeInTheDocument()
+    expect(within(measurePanel).getByText('5.00 m')).toBeInTheDocument()
   })
 
   it('passes fit state to the scene when fit tool is active', () => {
@@ -150,10 +208,12 @@ describe('ModelViewer', () => {
         modelUrl={null}
         activeTool="Fit"
         activeVersion="Architecture v12.glb"
+        cameraViewRequest={null}
         onSelectObject={vi.fn()}
         onSelectTool={vi.fn()}
         onSelectVersion={vi.fn()}
         onMoveObject={vi.fn()}
+        onCameraViewChange={vi.fn()}
       />,
     )
 

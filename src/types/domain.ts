@@ -15,6 +15,14 @@ export type ModelObject = {
   scale: [number, number, number]
 }
 
+export type CameraView = {
+  position: [number, number, number]
+  target: [number, number, number]
+  zoom: number
+}
+
+export type MeasurementPoint = [number, number, number]
+
 export type ModelIssueSeverity = 'Low' | 'Medium' | 'High'
 
 export type ModelIssueStatus = 'Open' | 'In Review' | 'Resolved'
@@ -25,7 +33,16 @@ export type ModelIssue = {
   title: string
   severity: ModelIssueSeverity
   status: ModelIssueStatus
+  assignee: string
+  note: string
+  viewContext: {
+    version: string
+    tool: string
+    cameraView: CameraView
+    objectPosition: [number, number, number]
+  }
   createdAt: string
+  resolvedAt?: string
 }
 
 export type Project = {

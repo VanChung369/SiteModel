@@ -4,7 +4,9 @@ type TopbarProps = {
   projectName: string
   projectSite: string
   savedViewCount: number
+  viewName: string
   actionMessage: string | null
+  onViewNameChange: (name: string) => void
   onSync: () => void
   onShare: () => void
   onSaveView: () => void
@@ -18,7 +20,9 @@ export function Topbar({
   projectName,
   projectSite,
   savedViewCount,
+  viewName,
   actionMessage,
+  onViewNameChange,
   onSync,
   onShare,
   onSaveView,
@@ -34,6 +38,15 @@ export function Topbar({
       <div className="topbar-actions">
         <span className="saved-view-count">{formatSavedViewCount(savedViewCount)}</span>
         {actionMessage ? <span className="action-message">{actionMessage}</span> : null}
+        <label className="view-name-field">
+          <span>View name</span>
+          <input
+            aria-label="View name"
+            placeholder="Coordination view"
+            value={viewName}
+            onChange={(event) => onViewNameChange(event.currentTarget.value)}
+          />
+        </label>
         <button type="button" onClick={onSync}>
           <RotateCcw size={16} />
           Sync
