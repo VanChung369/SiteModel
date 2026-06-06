@@ -1,74 +1,91 @@
-import { Fragment, Suspense, useRef } from 'react'
-import { useLoader, type ThreeEvent } from '@react-three/fiber'
-import { Bounds, Html, Line, TransformControls } from '@react-three/drei'
+import { Suspense, useEffect, useRef, useState, type RefObject } from 'react'
+import { useLoader } from '@react-three/fiber'
+import { Bounds, Html, Line, TransformControls, useBounds } from '@react-three/drei'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { DoubleSide, type Group, type Vector3 } from 'three'
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
+import { DoubleSide, Mesh, MeshStandardMaterial, type Group, type Vector3 } from 'three'
 import type { MeasurementPoint, ModelObject } from '../../types/domain'
+
+type TransformControlsHandle = {
+  axis: string | null
+}
 
 type SceneModelProps = {
   objects: ModelObject[]
   selectedId: string
   modelUrl: string | null
-  moveEnabled: boolean
+  modelName: string
+  activeTool: string
   measureEnabled: boolean
   fitEnabled: boolean
   measurementPoints: MeasurementPoint[]
   onSelect: (id: string) => void
-  onMoveObject: (id: string, position: ModelObject['position']) => void
+  onMoveObject: (
+    id: string,
+    position: ModelObject['position'],
+    rotation?: ModelObject['rotation'],
+    scale?: ModelObject['scale']
+  ) => void
   onMeasurePoint: (point: MeasurementPoint) => void
+  transformRef: RefObject<TransformControlsHandle | null>
 }
 
 type ModelBlockProps = {
   object: ModelObject
   selected: boolean
-  moveEnabled: boolean
+  activeTool: string
+  fitEnabled: boolean
   measureEnabled: boolean
   onSelect: (id: string) => void
-  onMoveObject: (id: string, position: ModelObject['position']) => void
   onMeasurePoint: (point: MeasurementPoint) => void
+  onSelectedGroupChange: (group: Group | null) => void
 }
 
 function toMeasurementPoint(point: Vector3): MeasurementPoint {
   return [Number(point.x.toFixed(3)), Number(point.y.toFixed(3)), Number(point.z.toFixed(3))]
 }
 
-function ModelBlock({ object, selected, moveEnabled, measureEnabled, onSelect, onMoveObject, onMeasurePoint }: ModelBlockProps) {
-  const groupRef = useRef<Group>(null)
-  const pendingFrameRef = useRef<number | null>(null)
+function ModelBlock({
+  object,
+  selected,
+  activeTool,
+  fitEnabled,
+  measureEnabled,
+  onSelect,
+  onMeasurePoint,
+  onSelectedGroupChange,
+}: ModelBlockProps) {
+  const [group, setGroup] = useState<Group | null>(null)
+  const bounds = useBounds()
+
+  const transformModeEnabled = activeTool === 'Move' || activeTool === 'Rotate' || activeTool === 'Scale'
+
+  useEffect(() => {
+    if (selected && group && (fitEnabled || transformModeEnabled)) {
+      bounds.refresh(group).clip().fit()
+    }
+  }, [selected, fitEnabled, transformModeEnabled, activeTool, group, bounds])
+
+  useEffect(() => {
+    if (!selected) {
+      return
+    }
+
+    onSelectedGroupChange(group)
+    return () => onSelectedGroupChange(null)
+  }, [selected, group, onSelectedGroupChange])
 
   if (!object.visible) {
     return null
   }
 
-  const updateMovedPosition = () => {
-    if (!groupRef.current) {
-      return
-    }
+  const radRotation = (object.rotation ?? [0, 0, 0]).map(d => d * Math.PI / 180) as [number, number, number]
 
-    onMoveObject(object.id, [
-      Number(groupRef.current.position.x.toFixed(3)),
-      Number(groupRef.current.position.y.toFixed(3)),
-      Number(groupRef.current.position.z.toFixed(3)),
-    ])
-  }
-
-  const scheduleMovedPositionUpdate = () => {
-    if (pendingFrameRef.current !== null) {
-      return
-    }
-
-    pendingFrameRef.current = window.requestAnimationFrame(() => {
-      pendingFrameRef.current = null
-      updateMovedPosition()
-    })
-  }
-
-  const mesh = (
-    <group ref={groupRef} position={object.position}>
+  return (
+    <group ref={setGroup} name={object.id} position={object.position} rotation={radRotation} scale={object.scale}>
       <mesh
         castShadow
         receiveShadow
-        scale={object.scale}
         onClick={(event) => {
           event.stopPropagation()
           if (measureEnabled) {
@@ -98,22 +115,114 @@ function ModelBlock({ object, selected, moveEnabled, measureEnabled, onSelect, o
       </mesh>
     </group>
   )
-
-  if (selected && moveEnabled) {
-    return (
-      <TransformControls mode="translate" size={1.18} space="world" onMouseUp={updateMovedPosition} onObjectChange={scheduleMovedPositionUpdate}>
-        {mesh}
-      </TransformControls>
-    )
-  }
-
-  return mesh
 }
 
 function LoadedModel({ url }: { url: string }) {
   const gltf = useLoader(GLTFLoader, url)
 
   return <primitive object={gltf.scene} scale={1.6} position={[0, 0, 0]} />
+}
+
+function LoadedObjModel({ url }: { url: string }) {
+  const obj = useLoader(OBJLoader, url)
+
+  useEffect(() => {
+    obj.traverse((child) => {
+      if (child instanceof Mesh) {
+        child.castShadow = true
+        child.receiveShadow = true
+
+        if (!child.material) {
+          child.material = new MeshStandardMaterial({
+            color: '#b7c4cf',
+            roughness: 0.62,
+            metalness: 0.04,
+          })
+        }
+      }
+    })
+  }, [obj])
+
+  return <primitive object={obj} scale={1.6} position={[0, 0, 0]} />
+}
+
+function SelectedTransformControls({
+  object,
+  objectId,
+  activeTool,
+  onMoveObject,
+  transformRef,
+}: {
+  object: Group | null
+  objectId: string
+  activeTool: string
+  onMoveObject: (
+    id: string,
+    position: ModelObject['position'],
+    rotation?: ModelObject['rotation'],
+    scale?: ModelObject['scale']
+  ) => void
+  transformRef: RefObject<TransformControlsHandle | null>
+}) {
+  const pendingFrameRef = useRef<number | null>(null)
+  const transformMode = activeTool === 'Rotate' ? 'rotate' : activeTool === 'Scale' ? 'scale' : activeTool === 'Move' ? 'translate' : null
+
+  useEffect(() => {
+    return () => {
+      if (pendingFrameRef.current !== null) {
+        window.cancelAnimationFrame(pendingFrameRef.current)
+      }
+    }
+  }, [])
+
+  if (!object || !transformMode) {
+    return null
+  }
+
+  const commitTransform = () => {
+    const position: ModelObject['position'] = [
+      Number(object.position.x.toFixed(3)),
+      Number(object.position.y.toFixed(3)),
+      Number(object.position.z.toFixed(3)),
+    ]
+    const rotation: ModelObject['rotation'] = [
+      Number((object.rotation.x * 180 / Math.PI).toFixed(1)),
+      Number((object.rotation.y * 180 / Math.PI).toFixed(1)),
+      Number((object.rotation.z * 180 / Math.PI).toFixed(1)),
+    ]
+    const scale: ModelObject['scale'] = [
+      Number(Math.max(0.05, object.scale.x).toFixed(3)),
+      Number(Math.max(0.05, object.scale.y).toFixed(3)),
+      Number(Math.max(0.05, object.scale.z).toFixed(3)),
+    ]
+
+    onMoveObject(objectId, position, rotation, scale)
+  }
+
+  const scheduleCommit = () => {
+    if (pendingFrameRef.current !== null) {
+      return
+    }
+
+    pendingFrameRef.current = window.requestAnimationFrame(() => {
+      pendingFrameRef.current = null
+      commitTransform()
+    })
+  }
+
+  return (
+    <TransformControls
+      ref={(node) => {
+        transformRef.current = node as TransformControlsHandle | null
+      }}
+      object={object}
+      mode={transformMode}
+      size={1.12}
+      space="world"
+      onObjectChange={scheduleCommit}
+      onMouseUp={commitTransform}
+    />
+  )
 }
 
 function MeasurementLayer({
@@ -151,90 +260,26 @@ function MeasurementLayer({
   )
 }
 
-function MoveDragLayer({
-  enabled,
-  selectedObject,
-  onMoveObject,
-}: {
-  enabled: boolean
-  selectedObject: ModelObject | undefined
-  onMoveObject: (id: string, position: ModelObject['position']) => void
-}) {
-  const draggingRef = useRef(false)
-
-  if (!enabled || !selectedObject?.visible) {
-    return null
-  }
-
-  const moveSelectedToPoint = (point: Vector3) => {
-    onMoveObject(selectedObject.id, [
-      Number(point.x.toFixed(3)),
-      selectedObject.position[1],
-      Number(point.z.toFixed(3)),
-    ])
-  }
-
-  const startDrag = (event: ThreeEvent<PointerEvent>) => {
-    event.stopPropagation()
-    draggingRef.current = true
-    if (event.target instanceof Element) {
-      event.target.setPointerCapture(event.pointerId)
-    }
-    moveSelectedToPoint(event.point)
-  }
-
-  const drag = (event: ThreeEvent<PointerEvent>) => {
-    if (!draggingRef.current) {
-      return
-    }
-
-    event.stopPropagation()
-    moveSelectedToPoint(event.point)
-  }
-
-  const stopDrag = (event: ThreeEvent<PointerEvent>) => {
-    if (!draggingRef.current) {
-      return
-    }
-
-    event.stopPropagation()
-    draggingRef.current = false
-    if (event.target instanceof Element && event.target.hasPointerCapture(event.pointerId)) {
-      event.target.releasePointerCapture(event.pointerId)
-    }
-    moveSelectedToPoint(event.point)
-  }
-
-  return (
-    <mesh
-      rotation={[-Math.PI / 2, 0, 0]}
-      position={[0, selectedObject.position[1], 0]}
-      onPointerDown={startDrag}
-      onPointerMove={drag}
-      onPointerUp={stopDrag}
-      onPointerCancel={stopDrag}
-    >
-      <planeGeometry args={[18, 18]} />
-      <meshBasicMaterial side={DoubleSide} transparent opacity={0} depthWrite={false} />
-    </mesh>
-  )
-}
-
 export function SceneModel({
   objects,
   selectedId,
   modelUrl,
-  moveEnabled,
+  modelName,
+  activeTool,
   measureEnabled,
   fitEnabled,
   measurementPoints,
   onSelect,
   onMoveObject,
   onMeasurePoint,
+  transformRef,
 }: SceneModelProps) {
-  const selectedObject = objects.find((object) => object.id === selectedId)
+  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null)
+  const handleSelectedGroupChange = (group: Group | null) => setSelectedGroup(group)
 
   if (modelUrl) {
+    const isObjModel = modelName.toLowerCase().endsWith('.obj')
+
     return (
       <Bounds fit clip observe margin={1.1}>
         <Suspense
@@ -244,7 +289,7 @@ export function SceneModel({
             </Html>
           }
         >
-          <LoadedModel url={modelUrl} />
+          {isObjModel ? <LoadedObjModel url={modelUrl} /> : <LoadedModel url={modelUrl} />}
           <MeasurementLayer enabled={measureEnabled} points={measurementPoints} onMeasurePoint={onMeasurePoint} />
         </Suspense>
       </Bounds>
@@ -253,28 +298,28 @@ export function SceneModel({
 
   return (
     <>
-      {objects.map((object) => {
-        const block = (
+      <Bounds clip observe margin={1.35}>
+        {objects.map((object) => (
           <ModelBlock
+            key={object.id}
             object={object}
             selected={object.id === selectedId}
-            moveEnabled={moveEnabled}
+            activeTool={activeTool}
+            fitEnabled={fitEnabled}
             measureEnabled={measureEnabled}
             onSelect={onSelect}
-            onMoveObject={onMoveObject}
             onMeasurePoint={onMeasurePoint}
+            onSelectedGroupChange={handleSelectedGroupChange}
           />
-        )
-
-        return object.id === selectedId && fitEnabled ? (
-          <Bounds key={object.id} fit clip observe margin={1.35}>
-            {block}
-          </Bounds>
-        ) : (
-          <Fragment key={object.id}>{block}</Fragment>
-        )
-      })}
-      <MoveDragLayer enabled={moveEnabled && !measureEnabled} selectedObject={selectedObject} onMoveObject={onMoveObject} />
+        ))}
+      </Bounds>
+      <SelectedTransformControls
+        object={selectedGroup}
+        objectId={selectedId}
+        activeTool={activeTool}
+        onMoveObject={onMoveObject}
+        transformRef={transformRef}
+      />
       <MeasurementLayer enabled={measureEnabled} points={measurementPoints} onMeasurePoint={onMeasurePoint} />
     </>
   )

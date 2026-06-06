@@ -32,6 +32,8 @@ vi.mock('@react-three/drei', () => ({
   Grid: () => null,
   Line: () => null,
   OrbitControls: () => null,
+  GizmoHelper: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  GizmoViewport: () => null,
 }))
 
 vi.mock('./SceneModel', () => ({

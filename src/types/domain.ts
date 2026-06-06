@@ -2,6 +2,14 @@ export type ModelObjectCategory = 'Structural' | 'Envelope' | 'MEP' | 'Site'
 
 export type ModelObjectStatus = 'Reviewed' | 'Changed' | 'Issue'
 
+export type ModelObjectMetadata = {
+  ifcGuid: string
+  phase: string
+  owner: string
+  volumeM3: number
+  clashes: number
+}
+
 export type ModelObject = {
   id: string
   name: string
@@ -12,7 +20,9 @@ export type ModelObject = {
   visible: boolean
   progress: number
   position: [number, number, number]
+  rotation?: [number, number, number]
   scale: [number, number, number]
+  metadata?: ModelObjectMetadata
 }
 
 export type CameraView = {
@@ -45,6 +55,27 @@ export type ModelIssue = {
   resolvedAt?: string
 }
 
+export type SavedView = {
+  id: string
+  name: string
+  projectId: string
+  selectedId: string
+  activeTool: string
+  activeVersion: string
+  cameraView: CameraView
+  hiddenObjectIds: string[]
+  createdAt: string
+}
+
+export type SharedViewState = {
+  projectId: string
+  selectedId: string
+  activeTool: string
+  activeVersion: string
+  cameraView: CameraView
+  hiddenObjectIds: string[]
+}
+
 export type Project = {
   id: string
   name: string
@@ -53,6 +84,17 @@ export type Project = {
   files: number
   issues: number
   active: boolean
+  role: ProjectRole
+}
+
+export type ProjectRole = 'Owner' | 'Editor' | 'Viewer'
+
+export type ProjectPermissions = {
+  canImport: boolean
+  canEditModel: boolean
+  canManageIssues: boolean
+  canSaveView: boolean
+  canSync: boolean
 }
 
 export type UploadItem = {
@@ -60,5 +102,8 @@ export type UploadItem = {
   name: string
   type: string
   size: string
-  state: 'Ready' | 'Converted' | 'Queued'
+  state: 'Ready' | 'Converted' | 'Queued' | 'Converting' | 'Failed'
+  conversionProgress?: number
+  jobId?: string
+  message?: string
 }

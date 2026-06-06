@@ -51,6 +51,7 @@ type RenderObjectPanelOptions = {
   onResetFilters?: () => void
   onCreateObject?: () => void
   onSelectAndMove?: (id: string) => void
+  onDeleteObject?: (id: string) => void
 }
 
 function renderObjectPanel(options: RenderObjectPanelOptions = {}) {
@@ -74,6 +75,7 @@ function renderObjectPanel(options: RenderObjectPanelOptions = {}) {
       onResetFilters={options.onResetFilters ?? vi.fn()}
       onCreateObject={options.onCreateObject ?? vi.fn()}
       onSelectAndMove={options.onSelectAndMove ?? vi.fn()}
+      onDeleteObject={options.onDeleteObject ?? vi.fn()}
     />,
   )
 }
@@ -140,6 +142,8 @@ describe('ObjectPanel', () => {
     renderObjectPanel({ objectSearch: 'basement' })
 
     expect(screen.getByText('No objects match these filters.')).toBeInTheDocument()
+
+    expect(screen.getByText('No objects match these filters.')).toBeInTheDocument()
   })
 
   it('emits create object from the panel action', () => {
@@ -160,5 +164,15 @@ describe('ObjectPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /select and move east facade panels/i }))
 
     expect(onSelectAndMove).toHaveBeenCalledWith('facade-east')
+  })
+
+  it('requests object deletion from its row action', () => {
+    const onDeleteObject = vi.fn()
+
+    renderObjectPanel({ onDeleteObject })
+
+    fireEvent.click(screen.getByRole('button', { name: /delete concrete core a/i }))
+
+    expect(onDeleteObject).toHaveBeenCalledWith('core-a')
   })
 })

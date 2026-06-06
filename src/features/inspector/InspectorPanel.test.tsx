@@ -109,6 +109,33 @@ describe('InspectorPanel', () => {
     expect(screen.getByText(/View: Architecture v12\.glb \/ Move/i)).toBeInTheDocument()
   })
 
+  it('shows BIM metadata from the selected object', () => {
+    render(
+      <InspectorPanel
+        selected={{
+          ...selected,
+          metadata: {
+            ifcGuid: '2M3kz$CoreA18xB7',
+            phase: 'Construction',
+            owner: 'Structural',
+            volumeM3: 5549,
+            clashes: 2,
+          },
+        }}
+        issues={[]}
+        onUpdateSelected={vi.fn()}
+        onIsolateSelected={vi.fn()}
+        onAddIssue={vi.fn()}
+        onUpdateIssueStatus={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('5,549 m3')).toBeInTheDocument()
+    expect(screen.getByText('IFC GUID: 2M3kz$CoreA18xB7', { exact: false })).toBeInTheDocument()
+    expect(screen.getByText('Owner: Structural', { exact: false })).toBeInTheDocument()
+    expect(screen.getByText('Clashes: 2', { exact: false })).toBeInTheDocument()
+  })
+
   it('shows an empty issue state when the selected object has no issues', () => {
     render(
       <InspectorPanel
@@ -157,6 +184,26 @@ describe('InspectorPanel', () => {
     expect(onUpdateIssueStatus).toHaveBeenNthCalledWith(1, 'issue-1', 'In Review')
     expect(onUpdateIssueStatus).toHaveBeenNthCalledWith(2, 'issue-1', 'Resolved')
     expect(onUpdateIssueStatus).toHaveBeenNthCalledWith(3, 'issue-1', 'Open')
+  })
+
+  it('requests issue view context restoration', () => {
+    const onRestoreIssueView = vi.fn()
+
+    render(
+      <InspectorPanel
+        selected={{ ...selected, status: 'Issue' }}
+        issues={issues}
+        onUpdateSelected={vi.fn()}
+        onIsolateSelected={vi.fn()}
+        onAddIssue={vi.fn()}
+        onUpdateIssueStatus={vi.fn()}
+        onRestoreIssueView={onRestoreIssueView}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /restore concrete core a coordination issue view context/i }))
+
+    expect(onRestoreIssueView).toHaveBeenCalledWith('issue-1')
   })
 
   it('updates the selected object position one axis at a time', () => {

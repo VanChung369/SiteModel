@@ -1,9 +1,13 @@
 import type { ModelObject, Project, UploadItem } from '../types/domain'
 
+function metadata(ifcGuid: string, phase: string, owner: string, volumeM3: number, clashes: number): ModelObject['metadata'] {
+  return { ifcGuid, phase, owner, volumeM3, clashes }
+}
+
 export const projects: Project[] = [
-  { id: 'p1', name: 'Riverside Tower', site: 'District 7', updated: '12 min ago', files: 18, issues: 7, active: true },
-  { id: 'p2', name: 'Long Bien Depot', site: 'Hanoi', updated: '2 hr ago', files: 11, issues: 3, active: false },
-  { id: 'p3', name: 'An Phu Villas', site: 'Thu Duc', updated: 'Yesterday', files: 24, issues: 12, active: false },
+  { id: 'p1', name: 'Riverside Tower', site: 'District 7', updated: '12 min ago', files: 18, issues: 7, active: true, role: 'Owner' },
+  { id: 'p2', name: 'Long Bien Depot', site: 'Hanoi', updated: '2 hr ago', files: 11, issues: 3, active: false, role: 'Viewer' },
+  { id: 'p3', name: 'An Phu Villas', site: 'Thu Duc', updated: 'Yesterday', files: 24, issues: 12, active: false, role: 'Editor' },
 ]
 
 export const baseObjects: ModelObject[] = [
@@ -18,6 +22,7 @@ export const baseObjects: ModelObject[] = [
     progress: 92,
     position: [0, 2.1, 0],
     scale: [1.15, 4.2, 1.15],
+    metadata: metadata('2M3kz$CoreA18xB7', 'Construction', 'Structural', 5549, 0),
   },
   {
     id: 'slab-08',
@@ -30,6 +35,7 @@ export const baseObjects: ModelObject[] = [
     progress: 66,
     position: [0, 2.2, 0],
     scale: [4.9, 0.18, 3.9],
+    metadata: metadata('1Slab08v12Kp9Q', 'Construction', 'Structural', 344, 1),
   },
   {
     id: 'facade-east',
@@ -42,6 +48,7 @@ export const baseObjects: ModelObject[] = [
     progress: 48,
     position: [2.55, 2.2, 0],
     scale: [0.16, 3.7, 3.7],
+    metadata: metadata('3FacadeEast7L16', 'Envelope install', 'Facade', 219, 4),
   },
   {
     id: 'podium',
@@ -54,6 +61,7 @@ export const baseObjects: ModelObject[] = [
     progress: 81,
     position: [-0.15, 0.55, -0.2],
     scale: [5.4, 1.1, 4.2],
+    metadata: metadata('0PodiumRetailL02', 'Construction', 'Site works', 2495, 0),
   },
   {
     id: 'mep-riser',
@@ -66,6 +74,7 @@ export const baseObjects: ModelObject[] = [
     progress: 59,
     position: [-1.2, 2.5, 0.95],
     scale: [0.42, 4.6, 0.52],
+    metadata: metadata('4MepRiserZoneA', 'Coordination', 'MEP', 502, 2),
   },
 ]
 
@@ -82,6 +91,7 @@ export const versionedObjects: Record<string, ModelObject[]> = {
       progress: 100,
       position: [0, 0.04, 0],
       scale: [6.4, 0.08, 4.8],
+      metadata: metadata('0SurveyBoundary', 'Existing', 'Survey', 246, 0),
     },
     {
       id: 'terrain-pad',
@@ -94,6 +104,7 @@ export const versionedObjects: Record<string, ModelObject[]> = {
       progress: 88,
       position: [-0.4, 0.18, 0.35],
       scale: [5.8, 0.22, 4.3],
+      metadata: metadata('0TerrainPadExisting', 'Existing', 'Survey', 548, 0),
     },
     {
       id: 'utility-corridor',
@@ -106,6 +117,7 @@ export const versionedObjects: Record<string, ModelObject[]> = {
       progress: 43,
       position: [1.6, 0.32, -1.15],
       scale: [2.9, 0.18, 0.42],
+      metadata: metadata('0UtilityCorridorMEP', 'Existing', 'Utilities', 219, 1),
     },
   ],
   'Architecture v12.glb': baseObjects,
@@ -121,6 +133,7 @@ export const versionedObjects: Record<string, ModelObject[]> = {
       progress: 90,
       position: [0, 2.1, 0],
       scale: [1.2, 4.2, 1.2],
+      metadata: metadata('2M3kz$CoreA08xS', 'Construction', 'Structural', 6048, 0),
     },
     {
       id: 'slab-08',
@@ -133,6 +146,7 @@ export const versionedObjects: Record<string, ModelObject[]> = {
       progress: 74,
       position: [0, 2.2, 0],
       scale: [5.1, 0.2, 4.1],
+      metadata: metadata('1Slab08Str08Qr', 'Construction', 'Structural', 418, 0),
     },
     {
       id: 'transfer-beam',
@@ -145,6 +159,7 @@ export const versionedObjects: Record<string, ModelObject[]> = {
       progress: 52,
       position: [-1.15, 1.2, -0.85],
       scale: [2.9, 0.32, 0.48],
+      metadata: metadata('2TransferBeamB2', 'Construction', 'Structural', 445, 3),
     },
     {
       id: 'podium-columns',
@@ -157,6 +172,7 @@ export const versionedObjects: Record<string, ModelObject[]> = {
       progress: 61,
       position: [1.4, 0.9, 1.1],
       scale: [1.8, 1.8, 1.8],
+      metadata: metadata('2PodiumColumnGrid', 'Construction', 'Structural', 5832, 1),
     },
   ],
   'Coordination markups.json': [
@@ -171,6 +187,7 @@ export const versionedObjects: Record<string, ModelObject[]> = {
       progress: 48,
       position: [2.2, 2.2, -0.25],
       scale: [0.18, 3.7, 3.7],
+      metadata: metadata('3FacadeEastMarkup', 'Envelope install', 'Facade', 246, 5),
     },
     {
       id: 'mep-riser',
@@ -183,6 +200,7 @@ export const versionedObjects: Record<string, ModelObject[]> = {
       progress: 59,
       position: [-1.2, 2.5, 0.95],
       scale: [0.42, 4.6, 0.52],
+      metadata: metadata('4MepRiserMarkup', 'Coordination', 'MEP', 502, 4),
     },
     {
       id: 'clash-zone-17',
@@ -195,6 +213,7 @@ export const versionedObjects: Record<string, ModelObject[]> = {
       progress: 22,
       position: [0.65, 2.8, 1.15],
       scale: [0.72, 0.72, 0.72],
+      metadata: metadata('4ClashZone17', 'Coordination', 'MEP', 373, 7),
     },
     {
       id: 'podium',
@@ -207,6 +226,7 @@ export const versionedObjects: Record<string, ModelObject[]> = {
       progress: 79,
       position: [-0.15, 0.55, -0.2],
       scale: [5.4, 1.1, 4.2],
+      metadata: metadata('0PodiumMarkup', 'Construction', 'Site works', 2495, 1),
     },
   ],
 }

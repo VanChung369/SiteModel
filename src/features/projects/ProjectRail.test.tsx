@@ -5,10 +5,18 @@ import { ProjectRail } from './ProjectRail'
 import type { Project } from '../../types/domain'
 
 const projects: Project[] = [
-  { id: 'p1', name: 'Riverside Tower', site: 'District 7', updated: '12 min ago', files: 18, issues: 7, active: true },
-  { id: 'p2', name: 'Long Bien Depot', site: 'Hanoi', updated: '2 hr ago', files: 11, issues: 3, active: false },
-  { id: 'p3', name: 'An Phu Villas', site: 'Thu Duc', updated: 'Yesterday', files: 24, issues: 12, active: false },
+  { id: 'p1', name: 'Riverside Tower', site: 'District 7', updated: '12 min ago', files: 18, issues: 7, active: true, role: 'Owner' },
+  { id: 'p2', name: 'Long Bien Depot', site: 'Hanoi', updated: '2 hr ago', files: 11, issues: 3, active: false, role: 'Viewer' },
+  { id: 'p3', name: 'An Phu Villas', site: 'Thu Duc', updated: 'Yesterday', files: 24, issues: 12, active: false, role: 'Editor' },
 ]
+
+const permissions = {
+  canImport: true,
+  canEditModel: true,
+  canManageIssues: true,
+  canSaveView: true,
+  canSync: true,
+}
 
 afterEach(cleanup)
 
@@ -19,10 +27,12 @@ describe('ProjectRail', () => {
         projects={projects}
         uploads={[]}
         activeProjectId="p1"
+        permissions={permissions}
         searchQuery="long"
         onSearchProjects={vi.fn()}
         onProjectSelected={vi.fn()}
         onFilesSelected={vi.fn()}
+        onRetryConversion={vi.fn()}
       />,
     )
 
@@ -40,10 +50,12 @@ describe('ProjectRail', () => {
         projects={projects}
         uploads={[]}
         activeProjectId="p1"
+        permissions={permissions}
         searchQuery=""
         onSearchProjects={onSearchProjects}
         onProjectSelected={onProjectSelected}
         onFilesSelected={vi.fn()}
+        onRetryConversion={vi.fn()}
       />,
     )
 

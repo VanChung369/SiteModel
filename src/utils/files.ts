@@ -11,5 +11,5 @@ export function getFileExtension(fileName: string) {
 }
 
 export function isBrowserLoadableModel(extension: string) {
-  return extension === '.glb' || extension === '.gltf'
+  return extension === '.glb' || extension === '.gltf' || extension === '.obj'
 }

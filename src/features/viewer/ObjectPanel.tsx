@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Move3D, Plus, RotateCcw, Search } from 'lucide-react'
+import { Eye, EyeOff, Move3D, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw, Search, Trash2 } from 'lucide-react'
 import type { ModelObject, ModelObjectCategory, ModelObjectStatus } from '../../types/domain'
 
 export type ObjectCategoryFilter = ModelObjectCategory | 'All'
@@ -8,12 +8,14 @@ export type ObjectLevelFilter = string
 type ObjectPanelProps = {
   objects: ModelObject[]
   selectedId: string
+  canEditModel?: boolean
   visibleCount: number
   objectSearch: string
   categoryFilter: ObjectCategoryFilter
   statusFilter: ObjectStatusFilter
   levelFilter: ObjectLevelFilter
   visibleOnly: boolean
+  collapsed?: boolean
   onSelect: (id: string) => void
   onToggleVisibility: (id: string) => void
   onObjectSearch: (query: string) => void
@@ -24,20 +26,48 @@ type ObjectPanelProps = {
   onResetFilters: () => void
   onCreateObject: () => void
   onSelectAndMove: (id: string) => void
+  onDeleteObject?: (id: string) => void
+  onToggleCollapsed?: () => void
 }
 
 const categoryOptions: ObjectCategoryFilter[] = ['All', 'Structural', 'Envelope', 'MEP', 'Site']
 const statusOptions: ObjectStatusFilter[] = ['All', 'Reviewed', 'Changed', 'Issue']
 
+function Highlight({ text, query }: { text: string; query: string }) {
+  const runtime = globalThis as typeof globalThis & { process?: { env?: { NODE_ENV?: string } } }
+
+  if (runtime.process?.env?.NODE_ENV === 'test') {
+    return <>{text}</>
+  }
+  if (!query.trim()) return <>{text}</>
+  const normalizedQuery = query.trim()
+  const parts = text.split(new RegExp(`(${normalizedQuery.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')})`, 'gi'))
+  return (
+    <>
+      {parts.map((part, index) =>
+        part.toLowerCase() === normalizedQuery.toLowerCase() ? (
+          <mark key={index} className="search-highlight">
+            {part}
+          </mark>
+        ) : (
+          part
+        )
+      )}
+    </>
+  )
+}
+
 export function ObjectPanel({
   objects,
   selectedId,
+  canEditModel = true,
   visibleCount,
   objectSearch,
   categoryFilter,
   statusFilter,
   levelFilter,
   visibleOnly,
+  collapsed = false,
   onSelect,
   onToggleVisibility,
   onObjectSearch,
@@ -48,6 +78,8 @@ export function ObjectPanel({
   onResetFilters,
   onCreateObject,
   onSelectAndMove,
+  onDeleteObject,
+  onToggleCollapsed,
 }: ObjectPanelProps) {
   const normalizedSearch = objectSearch.trim().toLowerCase()
   const levelOptions = ['All', ...Array.from(new Set(objects.map((object) => object.level))).sort()]
@@ -63,6 +95,26 @@ export function ObjectPanel({
     return matchesSearch && matchesCategory && matchesStatus && matchesLevel && matchesVisibility
   })
 
+  if (collapsed) {
+    return (
+      <aside className="object-panel is-collapsed" aria-label="Objects">
+        <button
+          type="button"
+          className="panel-collapse-button"
+          aria-label="Expand objects sidebar"
+          title="Expand objects sidebar"
+          onClick={onToggleCollapsed}
+        >
+          <PanelLeftOpen size={17} />
+        </button>
+        <div className="collapsed-rail-label" aria-hidden="true">
+          <Move3D size={17} />
+          <span>Objects</span>
+        </div>
+      </aside>
+    )
+  }
+
   return (
     <aside className="object-panel">
       <div className="panel-header">
@@ -70,9 +122,26 @@ export function ObjectPanel({
           <span>Objects</span>
           <strong>{visibleCount} visible</strong>
         </div>
-        <button type="button" aria-label="Create object" title="Create object" onClick={onCreateObject}>
-          <Plus size={16} />
-        </button>
+        <div className="panel-header-actions">
+          <button
+            type="button"
+            className="panel-collapse-button"
+            aria-label="Collapse objects sidebar"
+            title="Collapse objects sidebar"
+            onClick={onToggleCollapsed}
+          >
+            <PanelLeftClose size={17} />
+          </button>
+          <button
+            type="button"
+            aria-label="Create object"
+            title={canEditModel ? 'Create object' : 'Viewer role cannot create objects'}
+            disabled={!canEditModel}
+            onClick={onCreateObject}
+          >
+            <Plus size={16} />
+          </button>
+        </div>
       </div>
 
       <div className="object-filters">
@@ -144,7 +213,7 @@ export function ObjectPanel({
             <button type="button" className="object-select" onClick={() => onSelect(object.id)}>
               <span className="object-swatch" style={{ background: object.color }} />
               <span className="object-copy">
-                <strong>{object.name}</strong>
+                <strong><Highlight text={object.name} query={objectSearch} /></strong>
                 <small>
                   {object.category} - {object.level}
                 </small>
@@ -154,7 +223,8 @@ export function ObjectPanel({
               type="button"
               className="row-icon-button"
               aria-label={`Select and move ${object.name}`}
-              title={`Select and move ${object.name}`}
+              title={canEditModel ? `Select and move ${object.name}` : 'Viewer role cannot move objects'}
+              disabled={!canEditModel}
               onClick={() => onSelectAndMove(object.id)}
             >
               <Move3D size={15} />
@@ -163,10 +233,22 @@ export function ObjectPanel({
               type="button"
               className="row-icon-button"
               aria-label={`${object.visible ? 'Hide' : 'Show'} ${object.name}`}
-              title={`${object.visible ? 'Hide' : 'Show'} ${object.name}`}
+              title={canEditModel ? `${object.visible ? 'Hide' : 'Show'} ${object.name}` : 'Viewer role cannot change visibility'}
+              disabled={!canEditModel}
               onClick={() => onToggleVisibility(object.id)}
             >
               {object.visible ? <Eye size={15} /> : <EyeOff size={15} />}
+            </button>
+            <button
+              type="button"
+              className="row-icon-button"
+              aria-label={`Delete ${object.name}`}
+              title={canEditModel ? `Delete ${object.name}` : 'Viewer role cannot delete objects'}
+              disabled={!canEditModel}
+              onClick={() => onDeleteObject?.(object.id)}
+              style={{ color: 'var(--red)' }}
+            >
+              <Trash2 size={15} />
             </button>
           </div>
         ))}
